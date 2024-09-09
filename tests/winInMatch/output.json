@@ -1,5 +1,10 @@
 {
-    "name": "Нугрохо П-М – Хонтама М",
-    "outcome": "Поб 1",
+    "name1": "Нугрохо П-М",
+    "name2": "Хонтама М",
+    "outcome": {
+        "type": "win",
+        "player": "1",
+        "period": "match"
+    },
     "ratio": "3.15"
 }

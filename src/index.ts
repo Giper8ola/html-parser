@@ -2,90 +2,151 @@ import path from "path";
 import * as fs from "fs";
 import { JSDOM } from "jsdom";
 
-
-export function getHtmlStrByFile(folderName: string) {
-    const htmlFilePath = path.join(__dirname, `../tests/${folderName}/input.html`);
+export function getHtmlStrByFile(fullPath: string) {
 
     function readHtmlFile(filePath: string): string {
         try {
             return fs.readFileSync(filePath, 'utf-8');
         } catch (error) {
-            console.error('Error reading the HTML file:', error);
+            console.error('Ошибка чтения файла:', error);
             return '';
         }
     }
 
-    return  readHtmlFile(htmlFilePath);
+    return  readHtmlFile(fullPath);
 }
 
-export function getForWinInData(
-    folderName: string,
-    className: string
-) {
 
-    const html = getHtmlStrByFile(folderName)
+export function readDirectoryRecursive(dir: string): any[] {
+    const result: any[] = [];
 
-    let {window} = new JSDOM(html);
+    try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-    let objWithData = {
-        name: '',
-        outcome: '',
-        ratio: ''
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+                const subDirData = readDirectoryRecursive(fullPath);
+                result.push({ name: path.basename(fullPath), contents: subDirData });
+            } else {
+                const fileName = path.basename(fullPath);
+                switch (fileName) {
+                    case 'input.html':
+                        result.push({ type: 'html', html: getHtmlStrByFile(fullPath) });
+                        break;
+                    case 'output.json': {
+                        const jonson = JSON.parse(getHtmlStrByFile(fullPath))
+                        result.push({
+                            type: 'json',
+                            json: {
+                                ...jonson,
+                                outcome: JSON.stringify(jonson.outcome)
+                            }
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Ошибка чтения папки ${dir}:`, error);
     }
 
-    let fields =  window.document.querySelectorAll(`.${className}`);
-
-    objWithData.name = fields[0].textContent?.trim()!
-    objWithData.outcome = fields[1].textContent?.trim().substring(6, 11)!
-    objWithData.ratio = fields[2].children[1].textContent?.trim()!
-
-    return objWithData
+    return result;
 }
+function getValidCommandNames(
+    str: string,
+    state?: "fora" | string
+): Record<string, string> {
+    let strWithOutSet = (str.indexOf('сет') !== -1 ? str.substring(8) : str)
+    let strNames: string[] = strWithOutSet.split(' – ');
 
-export function getForForaGameData(
-    folderName: string,
-    className: string
-) {
-    const html = getHtmlStrByFile(folderName)
-
-    let {window} = new JSDOM(html);
-
-    let objWithData = {
-        name: '',
-        outcome: '',
-        ratio: ''
+    if (state &&  state === "fora") {
+        strNames = strNames.map(el => {
+            let indexOfBracket = el.indexOf('(')
+            if( indexOfBracket === -1 )
+                return el
+            else {
+                return el.substring(0, indexOfBracket - 1)
+            }
+        })
     }
 
-    let fields =  window.document.querySelectorAll(`.${className}`);
-
-    objWithData.name = fields[0].children[1].textContent?.trim()!
-    objWithData.outcome = fields[1].textContent?.trim().substring(6, 7)!
-    objWithData.ratio = fields[2].children[1].textContent?.trim()!
-
-    return objWithData;
+    return {
+        name1: strNames[0],
+        name2: strNames[1]
+    }
 }
 
-export function getForTotalGameData(
-    folderName: string,
-    className: string
-) {
-    const html = getHtmlStrByFile(folderName)
-
+export const htmlParse = (html: string) => {
     let {window} = new JSDOM(html);
 
+    let fields =  window.document.querySelectorAll('.group--hAXBT');
+
+    let regexFora = /[+-]\d*\.?\d+/g;
+    let regexTotal = /[<>] \d*\.?\d+/g;
+
+    let commandNamesField = fields[0]?.textContent?.trim() as string
+    let totalMiddleField = fields[1]?.textContent?.trim() as string
+
+    let foraNameNumbers = commandNamesField?.match(regexFora)
+    let totalSymbols = totalMiddleField?.match(regexTotal)
+
+    const foraKeysLength = foraNameNumbers?.length
+    const totalKeysLength = totalSymbols?.length
+
+    let period: "match" | "set" =
+        commandNamesField.indexOf('сет') === -1
+            ? "match"
+            : "set"
+
+    const {name1, name2} = getValidCommandNames(
+        commandNamesField,
+        foraKeysLength || 0 ? "fora" : ""
+    )
+
     let objWithData = {
-        name: '',
-        outcome: '',
-        ratio: ''
+        name1: name1,
+        name2: name2,
+        outcome: {},
+        ratio: fields[2].children[1].textContent?.trim()
     }
 
-    let fields =  window.document.querySelectorAll(`.${className}`);
+    objWithData.outcome = {
+        type: "win",
+        player: fields[1].textContent?.trim().at(-1),
+    }
 
-    objWithData.name = fields[0].textContent?.trim()!
-    objWithData.outcome = fields[1].children[1].textContent?.trim()!
-    objWithData.ratio = fields[2].children[1].textContent?.trim()!
+    if(foraKeysLength || 0) {
+        objWithData.outcome = {
+            type: "fora",
+            symbol: foraNameNumbers?.at(0)?.at(0),
+            count: foraNameNumbers?.at(0)?.substring(1, foraNameNumbers?.at(0)?.length),
+            player: fields[1].textContent?.trim().at(-1),
+        }
+    }
 
-    return objWithData;
+    if(totalKeysLength || 0) {
+        objWithData.outcome = {
+            type: "total",
+            player: "0",
+            over: totalSymbols?.at(0)?.at(0) === '>',
+            count: totalSymbols?.at(0)?.substring(2,  totalSymbols?.at(0)?.length),
+        }
+    }
+
+    Object.assign(objWithData.outcome,
+        period === "set"
+            ? {period: period, set: commandNamesField.at(0)}
+            : {period: period}
+    )
+
+    return {
+        ...objWithData,
+        outcome: JSON.stringify(objWithData.outcome)
+    }
 }
+
 
 

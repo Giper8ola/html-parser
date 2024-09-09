@@ -1,5 +1,12 @@
 {
-    "name": "Нугрохо П-М – Хонтама М",
-    "outcome": "> 20.5",
+    "name1": "Нугрохо П-М",
+    "name2": "Хонтама М",
+    "outcome": {
+        "type": "total",
+        "player": "0",
+        "over": true,
+        "count": "20.5",
+        "period": "match"
+    },
     "ratio": "1.93"
 }

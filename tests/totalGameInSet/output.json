@@ -1,5 +1,13 @@
 {
-    "name": "1-й сет Нугрохо П-М – Хонтама М",
-    "outcome": "> 9.5",
+    "name1": "Нугрохо П-М",
+    "name2": "Хонтама М",
+    "outcome": {
+        "type": "total",
+        "player": "0",
+        "over": true,
+        "count": "9.5",
+        "period": "set",
+        "set": "1"
+    },
     "ratio": "2.25"
 }
